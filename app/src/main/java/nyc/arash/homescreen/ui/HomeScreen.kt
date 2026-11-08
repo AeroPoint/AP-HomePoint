@@ -110,19 +110,27 @@ fun HomeScreen(
                 }
                 Text("$time $period", color = Color(0xFFE9EFFA), fontSize = 16.sp, fontWeight = FontWeight.Light)
             }
-            Spacer(Modifier.height(if (allApps) 18.dp else 30.dp))
+            Spacer(Modifier.height(if (allApps) 18.dp else 24.dp))
             Text(now.format(DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.getDefault())).uppercase(Locale.getDefault()), color = Color(0xFFB4C2DA), fontSize = 10.sp, letterSpacing = 1.7.sp)
             Spacer(Modifier.height(4.dp))
             Text(if (allApps) "All your apps." else greetingFor(now) + ".", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Light, letterSpacing = (-.6).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(if (allApps) 10.dp else 30.dp))
-            if (!allApps) {
+            Spacer(Modifier.height(if (allApps) 10.dp else 22.dp))
+            if (!allApps) BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                // Size the tiles so two rows (tile + its name) fit exactly, three across, centred.
+                val labelH = 36.dp
+                val rowGap = 22.dp
+                val colGap = 32.dp
+                val pad = 12.dp
+                val byHeight = (maxHeight - rowGap - labelH * 2 - pad) / 2 * (16f / 9f)
+                val byWidth = (maxWidth - colGap * 2 - pad) / HOME_COLUMNS
+                val tileW = minOf(byHeight, byWidth)
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(HOME_COLUMNS),
                     state = gridState,
-                    horizontalArrangement = Arrangement.spacedBy(30.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(colGap),
+                    verticalArrangement = Arrangement.spacedBy(rowGap),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(tileW * HOME_COLUMNS + colGap * (HOME_COLUMNS - 1) + pad).fillMaxHeight(),
                 ) {
                     itemsIndexed(favorites, key = { _, app -> "favorite:${app.id}" }) { index, app ->
                         AppTile(app, logos[app.id], { onLaunchApp(app) }, { arranging = app },

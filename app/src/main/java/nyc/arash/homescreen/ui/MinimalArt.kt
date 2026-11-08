@@ -57,8 +57,9 @@ internal object MinimalArt {
             if (seen >= (stand.size * 0.995).toInt()) { top = b / 255f; break }
         }
         if (top < MIN_CONTRAST) return null
-        val lo = 0.55f * top
-        val hi = 0.80f * top
+        // Strict enough that soft glows in the artwork (e.g. a gradient's bright corner) drop out.
+        val lo = 0.70f * top
+        val hi = 0.90f * top
 
         val out = IntArray(px.size)
         var minX = w; var minY = h; var maxX = -1; var maxY = -1

@@ -1,7 +1,7 @@
 package nyc.arash.homescreen.ui
 
+import android.graphics.drawable.Drawable
 import android.view.KeyEvent as AndroidKeyEvent
-import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -16,8 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -25,9 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import android.graphics.drawable.Drawable
+import androidx.core.graphics.drawable.toBitmap
 import androidx.tv.material3.Text
 import nyc.arash.homescreen.apps.TvApp
 
@@ -39,24 +38,25 @@ private fun Drawable.tileBitmap(defaultWidth: Int, defaultHeight: Int): ImageBit
     toBitmap((intrinsicWidth * scale).toInt().coerceAtLeast(1), (intrinsicHeight * scale).toInt().coerceAtLeast(1)).asImageBitmap()
 }.getOrNull()
 
-/** A single focus target. Focus changes the border, never the tile's size or position. */
+/**
+ * A frosted-glass tile. With a white logo (cut from the app's own art by MinimalArt) it shows that, centered; otherwise
+ * the app's original artwork, inset with rounded corners. Focus brightens the glass and draws a white border; it never
+ * changes the tile's size or position. `big` is the Home screen's 3-across size.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppTile(
     app: TvApp,
+    logo: ImageBitmap?,
     onClick: () -> Unit,
     onArrange: () -> Unit = {},
     modifier: Modifier = Modifier,
+    big: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(18.dp)
+    val radius = if (big) 26.dp else 16.dp
+    val shape = RoundedCornerShape(radius)
     val interaction = remember { MutableInteractionSource() }
-    val artworkSurface = remember(app.id) {
-        runCatching {
-            val pixel = app.banner?.toBitmap(8, 8)?.getPixel(0, 0)
-            if (pixel != null && android.graphics.Color.alpha(pixel) > 220) Color(pixel) else Color(0xFF151D2B)
-        }.getOrDefault(Color(0xFF151D2B))
-    }
     Column(
         modifier
             .navigationSound()
@@ -78,32 +78,39 @@ fun AppTile(
         Box(
             Modifier
                 .fillMaxWidth()
-                .aspectRatio(1.5f)
-                .shadow(if (focused) 14.dp else 4.dp, shape, ambientColor = Color(0x554E86D8), spotColor = Color(0x554E86D8))
+                .aspectRatio(16f / 9f)
+                .shadow(if (focused) 18.dp else 0.dp, shape, ambientColor = Color(0x664E86D8), spotColor = Color(0x664E86D8))
                 .clip(shape)
-                .background(artworkSurface)
-                .border(if (focused) 2.dp else 0.5.dp, if (focused) Color.White else Color(0x24FFFFFF), shape),
+                .background(if (focused) Color(0x52FFFFFF) else Color(0x24FFFFFF))
+                .border(if (focused) 2.dp else 1.dp, if (focused) Color.White else Color(0x38FFFFFF), shape),
             contentAlignment = Alignment.Center,
         ) {
-            val artwork = remember(app.id) {
-                app.banner?.tileBitmap(320, 180) ?: app.icon.tileBitmap(192, 192)
-            }
-            if (artwork != null) {
+            if (logo != null) {
                 Image(
-                    bitmap = artwork,
+                    bitmap = logo,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = if (app.hasBanner) Modifier.fillMaxSize() else Modifier.fillMaxSize().padding(15.dp),
+                    modifier = Modifier.fillMaxWidth(if (big) 0.62f else 0.66f).fillMaxHeight(if (big) 0.42f else 0.46f),
                 )
+            } else {
+                val artwork = remember(app.id) {
+                    app.banner?.tileBitmap(320, 180) ?: app.icon.tileBitmap(192, 192)
+                }
+                if (artwork != null) {
+                    Image(
+                        bitmap = artwork,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize().padding(if (big) 22.dp else 10.dp).clip(RoundedCornerShape(radius * 0.6f)),
+                    )
+                }
             }
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x10FFFFFF), Color.Transparent, Color(0x19000000)))))
-            if (focused) Box(Modifier.fillMaxSize().border(2.dp, Color.White, shape))
         }
-        Spacer(Modifier.height(9.dp))
+        Spacer(Modifier.height(if (big) 12.dp else 8.dp))
         Text(
             app.name,
-            color = if (focused) Color.White else Color(0xFFBDC7D9),
-            fontSize = 12.sp,
+            color = if (focused) Color.White else Color(0xFFC9D2E3),
+            fontSize = if (big) 15.sp else 11.sp,
             fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
             textAlign = TextAlign.Center,
             maxLines = 1,

@@ -7,6 +7,7 @@ import android.graphics.drawable.Drawable
 import android.media.tv.TvContract
 import android.media.tv.TvInputInfo
 import android.media.tv.TvInputManager
+import android.os.Build
 import androidx.core.content.ContextCompat
 import nyc.arash.homescreen.R
 import java.util.Locale
@@ -18,6 +19,7 @@ data class TvApp(
     val icon: Drawable,       // fallback square icon
     val launchIntent: Intent,
     val isUtility: Boolean = AppRepository.isUtility(id),
+    val category: AppCategory = AppCategory.OTHER,
 ) {
     val hasBanner: Boolean get() = banner != null
 }
@@ -46,12 +48,14 @@ class AppRepository(private val context: Context) {
                     ?: appInfo.loadLabel(pm).toString()
                 val banner = info.activityInfo.loadBanner(pm) ?: appInfo.loadBanner(pm)
                 val icon = appInfo.loadIcon(pm) ?: appInfo.loadLogo(pm) ?: continue
+                val declared = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) appInfo.category else -1
                 result += TvApp(
                     id = pkg,
                     name = label,
                     banner = banner,
                     icon = icon,
                     launchIntent = launch.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) },
+                    category = AppCategory.of(pkg, declared),
                 )
             }
         }
@@ -82,7 +86,7 @@ class AppRepository(private val context: Context) {
         val player = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY) ?: return null
         intent.setPackage(player.activityInfo.packageName)
         val banner = ContextCompat.getDrawable(context, R.drawable.livetv_banner) ?: return null
-        return TvApp(id = LIVE_TV_ID, name = "Live TV", banner = banner, icon = banner, launchIntent = intent)
+        return TvApp(id = LIVE_TV_ID, name = "Live TV", banner = banner, icon = banner, launchIntent = intent, category = AppCategory.LIVE)
     }
 
     companion object {

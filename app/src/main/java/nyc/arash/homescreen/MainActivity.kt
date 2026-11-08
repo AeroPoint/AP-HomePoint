@@ -17,6 +17,7 @@ import nyc.arash.homescreen.apps.AppRepository
 import nyc.arash.homescreen.apps.LauncherLayout
 import nyc.arash.homescreen.apps.TvApp
 import nyc.arash.homescreen.ui.HomeScreen
+import nyc.arash.homescreen.ui.MinimalArt
 import nyc.arash.homescreen.ui.NavigationSoundProvider
 import nyc.arash.homescreen.ui.Wallpaper
 import nyc.arash.homescreen.ui.theme.HomeScreenTheme
@@ -26,6 +27,7 @@ class MainActivity : ComponentActivity() {
     private var favoriteIds by mutableStateOf<List<String>>(emptyList())
     private var recentIds by mutableStateOf<List<String>>(emptyList())
     private var wallpaper by mutableStateOf<ImageBitmap?>(null)
+    private var logos by mutableStateOf<Map<String, ImageBitmap?>>(emptyMap())
     private var wallpaperKey: String? = null
     private var appsJob: Job? = null
     private var wallpaperJob: Job? = null
@@ -43,6 +45,7 @@ class MainActivity : ComponentActivity() {
                         favoriteIds = favoriteIds,
                         recentIds = recentIds,
                         wallpaper = wallpaper,
+                        logos = logos,
                         resumeGeneration = resumeGeneration,
                         onLaunchApp = ::launch,
                         onSaveFavorites = ::saveFavorites,
@@ -89,6 +92,14 @@ class MainActivity : ComponentActivity() {
             }
             favoriteIds = loadedFavorites
             apps = loadedApps
+            // White logos for the glass tiles, made once per app (a Home press must not redo them).
+            val missing = loadedApps.filter { it.id !in logos }
+            if (missing.isNotEmpty()) {
+                val made = withContext(Dispatchers.Default) {
+                    missing.associate { it.id to MinimalArt.whiteLogo(it.banner ?: it.icon, it.hasBanner) }
+                }
+                logos = logos + made
+            }
         }
         // The photo is decoded only when the chosen file changed (a Home press must not re-decode it).
         wallpaperJob?.cancel()

@@ -5,14 +5,16 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
+import android.os.Environment
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import java.io.File
 
 /**
- * The home screen's photo background, from the app's own folder
- * /sdcard/Android/data/<app id>/files/wallpapers/ (put pictures there with `adb push`; reading our own folder needs no
- * storage permission). The first picture by file name is used, so rename a file (for example to 0-...) to choose it.
+ * The home screen's photo background, from the shared folder /sdcard/Pictures/HomePoint/ (put pictures there with
+ * `adb push`; reading it needs the photos permission, granted by scripts/setup.sh) or from the app's own folder
+ * files/wallpapers/ where a device lets adb write there (Fire OS 8 doesn't). The first picture by file name is used,
+ * so rename a file (for example to 0-...) to choose it.
  * Pictures are scaled to fit a 1080p screen, kept in RGB_565, turned upright from their EXIF orientation, and a picture
  * that can't be read is skipped. With no usable picture the home screen keeps its built-in gradient.
  */
@@ -22,14 +24,16 @@ internal object Wallpaper {
     private const val TARGET_H = 1080
     private const val MAX_PIXELS = TARGET_W * TARGET_H * 2
 
-    /** The pictures in name order, or empty. */
-    fun candidates(context: Context): List<File> = runCatching {
-        val dir = context.getExternalFilesDir("wallpapers") ?: return emptyList()
-        dir.listFiles()
-            ?.filter { it.isFile && !it.name.startsWith(".") && it.extension.lowercase() in EXTENSIONS && it.length() > 0 }
-            ?.sortedBy { it.name.lowercase() }
-            .orEmpty()
-    }.getOrDefault(emptyList())
+    /** The pictures in name order (shared folder and the app's own folder together), or empty. */
+    fun candidates(context: Context): List<File> {
+        @Suppress("DEPRECATION") // the plain path is what adb push writes to; MediaStore isn't needed for one folder
+        val shared = runCatching { File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "HomePoint") }.getOrNull()
+        val own = runCatching { context.getExternalFilesDir("wallpapers") }.getOrNull()
+        return listOfNotNull(shared, own).flatMap { dir ->
+            runCatching { dir.listFiles()?.toList().orEmpty() }.getOrDefault(emptyList())
+        }.filter { it.isFile && !it.name.startsWith(".") && it.extension.lowercase() in EXTENSIONS && it.length() > 0 }
+            .sortedBy { it.name.lowercase() }
+    }
 
     /** Identifies the picture that would be shown, so callers can skip decoding when nothing changed. */
     fun cacheKey(files: List<File>): String = files.joinToString("|") { "${it.path}:${it.lastModified()}:${it.length()}" }

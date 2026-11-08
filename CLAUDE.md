@@ -6,8 +6,11 @@ arashvakil/HomeScreen (MIT): keep LICENSE and the credit in README.md.
 ## What it is
 - Favorites first, then "Recently used" (apps opened from HomePoint that aren't favorites), then all other apps.
 - Live TV tile: ACTION_VIEW on the hardware tuner's channel list (TVs without a tuner get no tile).
-- Photo background from the app's own folder `files/wallpapers/` (first picture by name), pushed with adb.
-- First-run favorites from an optional `files/favorites.txt` (one package name per line), pushed with adb.
+- Photo background from the shared folder `/sdcard/Pictures/HomePoint/` (first picture by name), pushed with adb;
+  needs the photos permission (READ_EXTERNAL_STORAGE / READ_MEDIA_IMAGES), which setup.sh grants. The app's own
+  `files/wallpapers/` also works where adb may write there; Fire OS 8 blocks adb from app folders.
+- First-run favorites from an optional `files/favorites.txt`, where adb may write app folders (not Fire OS 8; there
+  favorites are added on the TV).
 - The Home button redirect and launch at boot come from the separate app Home on Fire (GPL-3.0; not forked, not
   bundled). Holding Home opens Amazon's home, which keeps its own Continue watching rows.
 

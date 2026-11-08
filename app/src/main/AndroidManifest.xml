@@ -9,6 +9,9 @@
          the Home button redirect and launch-at-boot come from the separate Home on Fire app. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
+    <!-- Reads the background photo from the shared Pictures/HomePoint folder (granted by scripts/setup.sh). -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
     <application
         android:label="@string/app_name"

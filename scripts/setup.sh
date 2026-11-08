@@ -33,15 +33,21 @@ PY
 "$ADB" -s "$DEVICE" install -r "$APK"
 "$ADB" -s "$DEVICE" install -r "$TEMP_DIR/home-on-fire.apk"
 "$ADB" -s "$DEVICE" shell pm grant io.github.toolicious.homeonfire android.permission.WRITE_SECURE_SETTINGS
+# The background photo comes from the shared Pictures/HomePoint folder: allow HomePoint to read photos
+# (READ_EXTERNAL_STORAGE up to Android 12, READ_MEDIA_IMAGES from 13; the other one fails harmlessly).
+"$ADB" -s "$DEVICE" shell pm grant "$PKG" android.permission.READ_EXTERNAL_STORAGE 2>/dev/null || true
+"$ADB" -s "$DEVICE" shell pm grant "$PKG" android.permission.READ_MEDIA_IMAGES 2>/dev/null || true
 if [[ -n "$PRIVATE" ]]; then
-  # Start HomePoint once so Android creates its folder, then copy the private files in.
-  "$ADB" -s "$DEVICE" shell monkey -p "$PKG" -c android.intent.category.LEANBACK_LAUNCHER 1 >/dev/null
-  sleep 3
-  DEST="/sdcard/Android/data/$PKG/files"
-  [[ -f "$PRIVATE/favorites.txt" ]] && "$ADB" -s "$DEVICE" push "$PRIVATE/favorites.txt" "$DEST/favorites.txt"
   if [[ -d "$PRIVATE/wallpapers" ]]; then
-    "$ADB" -s "$DEVICE" shell mkdir -p "$DEST/wallpapers"
-    for f in "$PRIVATE"/wallpapers/*; do [[ -f "$f" ]] && "$ADB" -s "$DEVICE" push "$f" "$DEST/wallpapers/"; done
+    "$ADB" -s "$DEVICE" shell mkdir -p /sdcard/Pictures/HomePoint
+    for f in "$PRIVATE"/wallpapers/*; do [[ -f "$f" ]] && "$ADB" -s "$DEVICE" push "$f" /sdcard/Pictures/HomePoint/; done
+  fi
+  if [[ -f "$PRIVATE/favorites.txt" ]]; then
+    # Only where the device lets adb write into the app's own folder (Fire OS 8 doesn't): there, arrange on the TV.
+    "$ADB" -s "$DEVICE" shell monkey -p "$PKG" -c android.intent.category.LEANBACK_LAUNCHER 1 >/dev/null
+    sleep 3
+    "$ADB" -s "$DEVICE" push "$PRIVATE/favorites.txt" "/sdcard/Android/data/$PKG/files/favorites.txt" 2>/dev/null \
+      || echo "favorites.txt not copied (this TV blocks app folders): add favorites on the TV (hold OK on an app)"
   fi
 fi
 "$ADB" -s "$DEVICE" shell am start -n io.github.toolicious.homeonfire/.MainActivity

@@ -16,16 +16,17 @@ Fork of [HomeScreen by Arash Vakil](https://github.com/arashvakil/HomeScreen) (M
 ## Install on a Fire TV
 1. On the TV: Settings → My Fire TV → About, click the TV's name 7 times; then Developer options → ADB debugging on.
 2. On a computer with `adb`: `scripts/setup.sh <tv-ip>:5555 homepoint-release.apk [private-folder]`. It installs
-   HomePoint and the Home on Fire companion (download pinned by checksum), and, if you pass a private folder, copies
-   its `favorites.txt` and `wallpapers/` to the TV.
+   HomePoint and the Home on Fire companion (download pinned by checksum), lets HomePoint read photos, and, if you
+   pass a private folder, copies its `wallpapers/` to the TV's `Pictures/HomePoint` folder.
 3. On the TV: in Home on Fire, pick HomePoint as the target and turn on Replace Home (and Launch on boot).
 4. Turn ADB debugging off again.
 
 Hold Home for Amazon's home screen. To undo, turn off Home on Fire's redirect or uninstall both apps.
 
 ### Private files (not in this repo)
-- `favorites.txt`: one package name per line, used the first time HomePoint starts.
-- `wallpapers/`: pictures for the background; the first by file name is shown.
+- `wallpapers/`: pictures for the background, copied to `/sdcard/Pictures/HomePoint/`; the first by file name is shown.
+- `favorites.txt`: one package name per line, used the first time HomePoint starts, on devices that let adb write
+  into an app's own folder. Fire OS 8 doesn't: there, add favorites on the TV (hold OK on an app).
 
 ## License
 MIT, as upstream. Home on Fire is a separate app under GPL-3.0 and is not included.

@@ -1,58 +1,26 @@
-import java.util.Properties
-import java.net.URI
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val personalLauncher = providers.gradleProperty("personalLauncher").orNull != "false"
-val updateManifestUrl = providers.gradleProperty("updateManifestUrl").orElse("https://github.com/arashvakil/HomeScreen/releases/latest/download/update.json").get()
-require(updateManifestUrl.startsWith("https://") && !updateManifestUrl.contains('"') && !updateManifestUrl.contains('\n') && !updateManifestUrl.contains('\\')) { "updateManifestUrl must be an HTTPS URL" }
-val favoritesSyncUrl = providers.gradleProperty("favoritesSyncUrl").orElse("").get().trim().trimEnd('/')
-require(favoritesSyncUrl.isEmpty() || runCatching {
-    val uri = URI(favoritesSyncUrl)
-    uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.userInfo == null && uri.query == null && uri.fragment == null &&
-        !favoritesSyncUrl.contains('"') && !favoritesSyncUrl.contains('\\')
-}.getOrDefault(false)) { "favoritesSyncUrl must be an HTTPS base URL without credentials, query, or fragment" }
-val keystorePropsFile = rootProject.file(if (personalLauncher) "personal-keystore.properties" else "keystore.properties")
-val keystoreProps = Properties().apply {
-    if (keystorePropsFile.exists()) load(keystorePropsFile.inputStream())
-}
-
 android {
+    // Kotlin packages keep the upstream name (nyc.arash.homescreen) to keep the fork easy to compare.
     namespace = "nyc.arash.homescreen"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = if (personalLauncher) "nyc.arash.homescreen.studio" else "nyc.arash.homescreen"
+        applicationId = "com.aeropoint.homepoint"
         minSdk = 22
         targetSdk = 34
-        versionCode = 6
-        versionName = "0.6.0"
-        buildConfigField("boolean", "AUTO_UPDATE_ENABLED", "true")
-        buildConfigField("String", "FAVORITES_SYNC_URL", "\"$favoritesSyncUrl\"")
-        buildConfigField("String", "UPDATE_MANIFEST_URL", "\"$updateManifestUrl\"")
-    }
-
-    signingConfigs {
-        if (keystoreProps.isNotEmpty()) {
-            create("release") {
-                storeFile = file(keystoreProps["storeFile"] as String)
-                storePassword = keystoreProps["storePassword"] as String
-                keyAlias = keystoreProps["keyAlias"] as String
-                keyPassword = keystoreProps["keyPassword"] as String
-            }
-        }
+        versionCode = 100
+        versionName = "1.0.0"
     }
 
     buildTypes {
         release {
+            // Built unsigned; CI signs it in its last step with apksigner (see .github/workflows/android.yml).
             isMinifyEnabled = false
-            if (keystoreProps.isNotEmpty()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -67,7 +35,6 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures {
         compose = true
-        buildConfig = true
     }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -82,22 +49,17 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
 
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material:material-icons-extended")
 
     // TV-specific Compose
     implementation("androidx.tv:tv-foundation:1.0.0-alpha11")
     implementation("androidx.tv:tv-material:1.0.0")
 
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-
-    implementation("io.coil-kt:coil-compose:2.7.0")
+    // No networking libraries: HomePoint never uses the internet (no INTERNET permission either).
 }
 
 // Freeze transitive versions as well as the directly pinned dependencies.

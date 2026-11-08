@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Live TV (antenna) tile: a screen with rabbit-ear antennas on a deep blue ground. Drawn for HomePoint. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp" android:height="180dp"
+    android:viewportWidth="320" android:viewportHeight="180">
+    <path android:fillColor="#0E2A47" android:pathData="M0,0 H320 V180 H0 Z" />
+    <path android:fillColor="#16406B" android:pathData="M0,0 H320 V70 C220,98 110,58 0,88 Z" />
+    <!-- antennas -->
+    <path android:strokeColor="#E8F1FF" android:strokeWidth="5" android:strokeLineCap="round"
+        android:pathData="M160,62 L128,24 M160,62 L194,22" />
+    <path android:fillColor="#E8F1FF" android:pathData="M124,20 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+    <path android:fillColor="#E8F1FF" android:pathData="M198,18 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+    <!-- screen -->
+    <path android:fillColor="#E8F1FF"
+        android:pathData="M96,62 H224 Q236,62 236,74 V140 Q236,152 224,152 H96 Q84,152 84,140 V74 Q84,62 96,62 Z" />
+    <path android:fillColor="#1E5C96"
+        android:pathData="M100,72 H220 Q226,72 226,78 V136 Q226,142 220,142 H100 Q94,142 94,136 V78 Q94,72 100,72 Z" />
+    <!-- live dot and waves -->
+    <path android:fillColor="#FF5A5F" android:pathData="M160,107 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
+    <path android:strokeColor="#9CC7F2" android:strokeWidth="4" android:strokeLineCap="round"
+        android:pathData="M138,90 Q128,107 138,124 M182,90 Q192,107 182,124" />
+    <!-- stand -->
+    <path android:fillColor="#E8F1FF" android:pathData="M138,158 H182 Q186,158 186,162 Q186,166 182,166 H138 Q134,166 134,162 Q134,158 138,158 Z" />
+</vector>

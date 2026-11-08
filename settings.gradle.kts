@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "HomeScreen"
+rootProject.name = "HomePoint"
 include(":app")

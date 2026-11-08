@@ -1,20 +1,63 @@
-name: Android checks
+name: Build HomePoint
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      write_locks:
+        description: "Refresh gradle.lockfile (after changing dependencies); the new file is saved as an artifact"
+        type: boolean
+        default: false
+      make_keystore:
+        description: "One time only: make a new release signing key (1-day artifact; store it as secrets, then delete the artifact)"
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
-  group: android-${{ github.ref }}
+  # Separate groups so a push never cancels a manual run (or the reverse).
+  group: android-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 jobs:
-  android:
-    name: Android checks
+  keystore:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.make_keystore }}
+    name: Make a release signing key
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Generate key (password random, never printed)
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p out
+          pass="$(openssl rand -base64 33 | tr -d '/+=\n' | cut -c1-32)"
+          echo "::add-mask::$pass"
+          keytool -genkeypair -noprompt -storetype PKCS12 -keystore out/homepoint-release.p12 -alias homepoint \
+            -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=HomePoint" -storepass "$pass" -keypass "$pass"
+          printf '%s' "$pass" > out/password.txt
+          base64 -w0 out/homepoint-release.p12 > out/homepoint-release.p12.b64
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: homepoint-release-key
+          path: out/
+          retention-days: 1
+          if-no-files-found: error
+
+  android:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.make_keystore) }}
+    name: Test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
@@ -26,23 +69,46 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - name: Install Android SDK
         run: sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
-      - name: Test favorites sync service
-        run: python3 -m unittest discover -s server/sync -p 'test_*.py'
-      - name: Test, build, and lint
-        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:lintDebug --no-daemon
-      - name: Save TV test build
+      - name: Test, build, and lint (no signing material present)
+        run: ./gradlew ${{ (github.event_name == 'workflow_dispatch' && inputs.write_locks) && '--write-locks' || '' }} :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:lintDebug --no-daemon
+      - name: Sign the release (not for pull requests; skipped until the key secrets exist)
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          KEYSTORE_B64: ${{ secrets.HOMEPOINT_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.HOMEPOINT_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64:-}" ] || [ -z "${KEYSTORE_PASSWORD:-}" ]; then
+            echo "Key secrets not set: the release APK stays unsigned"
+            exit 0
+          fi
+          umask 077
+          tools="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools/34.0.0"
+          ks="$RUNNER_TEMP/homepoint-release.p12"
+          trap 'rm -f "$ks"' EXIT
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$ks"
+          in=app/build/outputs/apk/release/app-release-unsigned.apk
+          "$tools/zipalign" -p -f 4 "$in" "$RUNNER_TEMP/aligned.apk"
+          "$tools/apksigner" sign --ks "$ks" --ks-key-alias homepoint --ks-pass env:KEYSTORE_PASSWORD \
+            --key-pass env:KEYSTORE_PASSWORD --out app/build/outputs/apk/release/homepoint-release.apk "$RUNNER_TEMP/aligned.apk"
+          "$tools/apksigner" verify --print-certs app/build/outputs/apk/release/homepoint-release.apk | grep -E "Signer #1 certificate (DN|SHA-256)"
+      - name: Checksums
+        run: sha256sum app/build/outputs/apk/*/*.apk | tee apk-sha256.txt
+      - name: Save the refreshed lock file
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.write_locks }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: homescreen-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: gradle-lockfile
+          path: app/gradle.lockfile
           retention-days: 3
           if-no-files-found: error
-      - name: Save unsigned release for local signing
+      - name: Save the APKs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: homescreen-release-unsigned
+          name: homepoint-apks
           path: |
-            app/build/outputs/apk/release/app-release-unsigned.apk
-            app/build/outputs/apk/release/output-metadata.json
-          retention-days: 3
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+            apk-sha256.txt
+          retention-days: 14
           if-no-files-found: error

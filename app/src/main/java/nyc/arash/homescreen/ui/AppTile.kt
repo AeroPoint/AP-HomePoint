@@ -25,9 +25,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import android.graphics.drawable.Drawable
 import androidx.tv.material3.Text
-import coil.compose.rememberAsyncImagePainter
 import nyc.arash.homescreen.apps.TvApp
+
+/** App artwork as a bitmap, drawn locally (no image-loading library). */
+private fun Drawable.tileBitmap(defaultWidth: Int, defaultHeight: Int): ImageBitmap? = runCatching {
+    if (intrinsicWidth <= 0 || intrinsicHeight <= 0) return@runCatching toBitmap(defaultWidth, defaultHeight).asImageBitmap()
+    // One scale factor for both sides, so oversized art shrinks without being squashed.
+    val scale = minOf(1f, 640f / intrinsicWidth, 360f / intrinsicHeight)
+    toBitmap((intrinsicWidth * scale).toInt().coerceAtLeast(1), (intrinsicHeight * scale).toInt().coerceAtLeast(1)).asImageBitmap()
+}.getOrNull()
 
 /** A single focus target. Focus changes the border, never the tile's size or position. */
 @OptIn(ExperimentalFoundationApi::class)
@@ -75,12 +85,17 @@ fun AppTile(
                 .border(if (focused) 2.dp else 0.5.dp, if (focused) Color.White else Color(0x24FFFFFF), shape),
             contentAlignment = Alignment.Center,
         ) {
-            Image(
-                painter = rememberAsyncImagePainter(app.banner ?: app.icon),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = if (app.hasBanner) Modifier.fillMaxSize() else Modifier.fillMaxSize().padding(15.dp),
-            )
+            val artwork = remember(app.id) {
+                app.banner?.tileBitmap(320, 180) ?: app.icon.tileBitmap(192, 192)
+            }
+            if (artwork != null) {
+                Image(
+                    bitmap = artwork,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = if (app.hasBanner) Modifier.fillMaxSize() else Modifier.fillMaxSize().padding(15.dp),
+                )
+            }
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x10FFFFFF), Color.Transparent, Color(0x19000000)))))
             if (focused) Box(Modifier.fillMaxSize().border(2.dp, Color.White, shape))
         }

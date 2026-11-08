@@ -1,80 +1,67 @@
 package nyc.arash.homescreen
 
 import android.os.Bundle
-import android.content.SharedPreferences
-import android.widget.Toast
-import java.io.File
-import nyc.arash.homescreen.update.UpdateManifest
-import nyc.arash.homescreen.update.UpdateReadyStore
-import nyc.arash.homescreen.update.UpdateInstaller
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import nyc.arash.homescreen.apps.AppRepository
+import nyc.arash.homescreen.apps.LauncherLayout
 import nyc.arash.homescreen.apps.TvApp
 import nyc.arash.homescreen.ui.HomeScreen
 import nyc.arash.homescreen.ui.NavigationSoundProvider
+import nyc.arash.homescreen.ui.Wallpaper
 import nyc.arash.homescreen.ui.theme.HomeScreenTheme
-import nyc.arash.homescreen.update.UpdateScheduler
 
 class MainActivity : ComponentActivity() {
     private var apps by mutableStateOf<List<TvApp>>(emptyList())
-    private var loadJob: Job? = null
+    private var favoriteIds by mutableStateOf<List<String>>(emptyList())
+    private var recentIds by mutableStateOf<List<String>>(emptyList())
+    private var wallpaper by mutableStateOf<ImageBitmap?>(null)
+    private var wallpaperKey: String? = null
+    private var appsJob: Job? = null
+    private var wallpaperJob: Job? = null
     private var resumeGeneration by mutableIntStateOf(0)
     private var pendingFocusRestore = false
-    private val updateStore by lazy { UpdateReadyStore(applicationContext) }
-    private var readyUpdate by mutableStateOf<Pair<UpdateManifest, File>?>(null)
-    private var installingUpdate by mutableStateOf(false)
-    private var updateLoadJob: Job? = null
-    private val updateListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == UpdateReadyStore.READY_KEY) refreshReadyUpdate()
-    }
-
-    private fun refreshReadyUpdate() {
-        if (BuildConfig.DEBUG || !BuildConfig.AUTO_UPDATE_ENABLED) return
-        updateLoadJob?.cancel()
-        updateLoadJob = lifecycleScope.launch {
-            readyUpdate = withContext(Dispatchers.IO) { updateStore.loadReady() }
-        }
-    }
-
-    private fun installReadyUpdate() {
-        val ready = readyUpdate ?: return
-        if (installingUpdate || !hasWindowFocus()) return
-        installingUpdate = true
-        lifecycleScope.launch {
-            try {
-                withContext(Dispatchers.IO) { UpdateInstaller.install(applicationContext, ready.second, ready.first) }
-            } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                Toast.makeText(this@MainActivity, "Could not install update. Allow Home to install unknown apps, then try again.", Toast.LENGTH_LONG).show()
-            } finally {
-                installingUpdate = false
-                refreshReadyUpdate()
-            }
-        }
-    }
+    private val layout by lazy { LauncherLayout(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (BuildConfig.AUTO_UPDATE_ENABLED && !BuildConfig.DEBUG) UpdateScheduler.schedule(applicationContext)
-        updateStore.preferences.registerOnSharedPreferenceChangeListener(updateListener)
         setContent {
             HomeScreenTheme {
                 NavigationSoundProvider {
-                    HomeScreen(apps = apps, resumeGeneration = resumeGeneration, updateVersion = readyUpdate?.first?.versionName, updateInstalling = installingUpdate, onInstallUpdate = ::installReadyUpdate, onLaunchApp = { app -> runCatching { startActivity(app.launchIntent) } })
+                    HomeScreen(
+                        apps = apps,
+                        favoriteIds = favoriteIds,
+                        recentIds = recentIds,
+                        wallpaper = wallpaper,
+                        resumeGeneration = resumeGeneration,
+                        onLaunchApp = ::launch,
+                        onSaveFavorites = ::saveFavorites,
+                    )
                 }
             }
         }
+    }
+
+    private fun launch(app: TvApp) {
+        if (runCatching { startActivity(app.launchIntent) }.isSuccess) {
+            layout.recordLaunch(app.id)
+            recentIds = layout.recentIds()
+        }
+    }
+
+    private fun saveFavorites(ids: List<String>) {
+        layout.saveFavorites(ids)
+        favoriteIds = layout.favoriteIds()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -89,19 +76,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onDestroy() {
-        updateStore.preferences.unregisterOnSharedPreferenceChangeListener(updateListener)
-        super.onDestroy()
-    }
-
     override fun onResume() {
         super.onResume()
-        refreshReadyUpdate()
         pendingFocusRestore = true
         restoreFocusWhenReady()
-        loadJob?.cancel()
-        loadJob = lifecycleScope.launch {
-            apps = withContext(Dispatchers.IO) { AppRepository(applicationContext).listApps() }
+        recentIds = layout.recentIds()
+        appsJob?.cancel()
+        appsJob = lifecycleScope.launch {
+            // favoriteIds may read the private favorites file on first run, so it is off the main thread too.
+            val (loadedApps, loadedFavorites) = withContext(Dispatchers.IO) {
+                AppRepository(applicationContext).listApps() to layout.favoriteIds()
+            }
+            favoriteIds = loadedFavorites
+            apps = loadedApps
+        }
+        // The photo is decoded only when the chosen file changed (a Home press must not re-decode it).
+        wallpaperJob?.cancel()
+        wallpaperJob = lifecycleScope.launch {
+            val files = withContext(Dispatchers.IO) { Wallpaper.candidates(applicationContext) }
+            val key = Wallpaper.cacheKey(files)
+            if (key != wallpaperKey) {
+                wallpaper = withContext(Dispatchers.IO) { Wallpaper.load(files) }
+                wallpaperKey = key
+            }
         }
     }
 }

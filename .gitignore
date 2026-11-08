@@ -9,6 +9,8 @@ captures/
 *.aab
 *.jks
 *.keystore
+*.p12
+*.p12.b64
 keystore.properties
 
 .local-signing/

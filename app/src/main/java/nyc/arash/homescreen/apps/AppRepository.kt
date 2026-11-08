@@ -4,6 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.media.tv.TvContract
+import android.media.tv.TvInputInfo
+import android.media.tv.TvInputManager
+import androidx.core.content.ContextCompat
+import nyc.arash.homescreen.R
 import java.util.Locale
 
 data class TvApp(
@@ -53,11 +58,37 @@ class AppRepository(private val context: Context) {
 
         addFromIntent(Intent.CATEGORY_LEANBACK_LAUNCHER)
         addFromIntent(Intent.CATEGORY_LAUNCHER) // pick up phone apps that work on Fire TV (e.g. Plexamp)
+        liveTv()?.let { result += it }
 
         // Stable, slightly opinionated sort: banner apps first (look better as tiles), then alpha.
         return result.sortedWith(compareByDescending<TvApp> { it.hasBanner }.thenBy { it.name.lowercase(Locale.ROOT) })
     }
+
+    /**
+     * The antenna: the TV's own Live TV player on its built-in tuner. Fire OS shows no app icon for it, so this is a
+     * tile of our own. On Fire TV smart TVs, ACTION_VIEW on the hardware tuner's channel list opens Amazon's Live TV
+     * player (com.amazon.tv.livetv). TVs without a hardware tuner get no tile.
+     */
+    private fun liveTv(): TvApp? {
+        val tvInputs = context.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager ?: return null
+        val inputs = runCatching { tvInputs.tvInputList }.getOrDefault(emptyList())
+        // Hardware tuners carry a "/HW" suffix; streaming apps also register TYPE_TUNER inputs, so skip those.
+        val tuner = inputs
+            .filter { it.type == TvInputInfo.TYPE_TUNER && !it.isPassthroughInput && it.id.contains("/HW") }
+            .minByOrNull { it.id }
+            ?: return null
+        val intent = Intent(Intent.ACTION_VIEW, TvContract.buildChannelsUriForInput(tuner.id))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val player = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY) ?: return null
+        intent.setPackage(player.activityInfo.packageName)
+        val banner = ContextCompat.getDrawable(context, R.drawable.livetv_banner) ?: return null
+        return TvApp(id = LIVE_TV_ID, name = "Live TV", banner = banner, icon = banner, launchIntent = intent)
+    }
+
     companion object {
+        /** Our own tile for the antenna (not a package). */
+        const val LIVE_TV_ID = "homepoint.livetv"
+
         /** Utilities remain available under All Apps instead of taking streaming shelf positions. */
         fun isUtility(packageName: String): Boolean {
             val id = packageName.lowercase(Locale.ROOT)
@@ -70,6 +101,8 @@ class AppRepository(private val context: Context) {
             "io.github.toolicious.homeonfire",
             "nyc.arash.homescreen",
             "nyc.arash.homescreen.debug",
+            "com.aeropoint.homepoint",
+            "com.aeropoint.homepoint.debug",
             "io.privado.android",
             "com.windscribe.vpn",
             "com.amazon.smarthomemapviewapp",

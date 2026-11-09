@@ -4,32 +4,34 @@
 # copied into HomePoint's own folder on the TV.
 set -euo pipefail
 if [[ $# -lt 2 || $# -gt 3 ]]; then
-  echo "Usage: $0 <fire-tv-ip:5555> <homepoint-release.apk> [private-folder]" >&2
+  echo "Usage: $0 <tv-address> <homepoint-release.apk> [private-folder]" >&2
+  echo "Example: $0 192.168.1.23 homepoint-release.apk" >&2
   exit 1
 fi
 DEVICE="$1"
+[[ "$DEVICE" == *:* ]] || DEVICE="$DEVICE:5555"
 APK="$2"
 PRIVATE="${3:-}"
 PKG=com.aeropoint.homepoint
 [[ -f "$APK" ]] || { echo "APK not found: $APK" >&2; exit 1; }
 [[ -z "$PRIVATE" || -d "$PRIVATE" ]] || { echo "Private folder not found: $PRIVATE" >&2; exit 1; }
 ADB="${ADB:-adb}"
-command -v "$ADB" >/dev/null
-command -v curl >/dev/null
-command -v python3 >/dev/null
+command -v "$ADB" >/dev/null || { echo "adb not found: download Google's Platform-Tools (see README) and run with ADB=platform-tools/adb" >&2; exit 1; }
+command -v curl >/dev/null || { echo "curl not found" >&2; exit 1; }
+if command -v sha256sum >/dev/null; then SHA=(sha256sum); else SHA=(shasum -a 256); fi
 TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
-curl --fail --location --proto '=https' --proto-redir '=https' \
+curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
   'https://github.com/toolicious/home-on-fire/releases/download/v1.5.2/home-on-fire.apk' \
   --output "$TEMP_DIR/home-on-fire.apk"
-python3 - "$TEMP_DIR/home-on-fire.apk" <<'PY'
-import hashlib, pathlib, sys
-actual = hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest()
-if actual != '87403c961264cc2e36e53cf571777ec20705eb87f46794cb0ac667135a98d9fe':
-    sys.exit('Home on Fire checksum mismatch; nothing installed')
-PY
-"$ADB" connect "$DEVICE"
-"$ADB" -s "$DEVICE" get-state
+actual="$("${SHA[@]}" "$TEMP_DIR/home-on-fire.apk" | cut -d' ' -f1)"
+[[ "$actual" == 87403c961264cc2e36e53cf571777ec20705eb87f46794cb0ac667135a98d9fe ]] \
+  || { echo 'Home on Fire checksum mismatch; nothing installed' >&2; exit 1; }
+out="$("$ADB" connect "$DEVICE" 2>&1 || true)"
+echo "$out"
+[[ "$out" == *"connected to"* ]] || { echo "Couldn't reach the TV at $DEVICE: check its address and that ADB debugging is on" >&2; exit 1; }
+echo 'If the TV asks "Allow USB debugging?", tick "Always allow from this computer" and choose OK.'
+"$ADB" -s "$DEVICE" wait-for-device
 "$ADB" -s "$DEVICE" install -r "$APK"
 "$ADB" -s "$DEVICE" install -r "$TEMP_DIR/home-on-fire.apk"
 "$ADB" -s "$DEVICE" shell pm grant io.github.toolicious.homeonfire android.permission.WRITE_SECURE_SETTINGS

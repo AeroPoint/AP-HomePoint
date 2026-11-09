@@ -14,6 +14,7 @@ Fork of [HomeScreen by Arash Vakil](https://github.com/arashvakil/HomeScreen) (M
   used" group first (kept on the TV, skips favorites), a Live TV tile for the TV's antenna tuner, a photo background,
   first-run favorites from a private file, and arranging that ignores uninstalled favorites.
 - CI builds unsigned and signs release builds in a final step; pull requests never see the key.
+- Releases attach the signed APK from a CI build (signer `CN=HomePoint`; the release notes give its checksums).
 
 ## Install on a Fire TV
 You need the TV and a computer (Mac or Windows) on the same Wi-Fi. It takes about 15 minutes.
@@ -24,14 +25,14 @@ You need the TV and a computer (Mac or Windows) on the same Wi-Fi. It takes abou
 2. **Install from the computer.**
    1. **Find the TV's address.** On the TV: Settings → My Fire TV (or Device & Software) → About → Network. Write
       down the **IP Address**, for example `192.168.1.23`.
-   2. **Download three things** and unzip each one:
-      - This project: at the top of this page, the green **Code** button → **Download ZIP**. You get a folder called
-        `AP-HomePoint-main`.
-      - The HomePoint app: the **Actions** tab at the top of this page → the newest run with a green check mark →
-        scroll down to **Artifacts** → **homepoint-apks** (GitHub asks you to sign in). After unzipping, the file you
-        need is `homepoint-release.apk`, inside the folders app → build → outputs → apk → release.
+   2. **Download three things:**
+      - This project: at the top of this page, the green **Code** button → **Download ZIP**, then unzip it. You get a
+        folder called `AP-HomePoint-main`.
+      - The HomePoint app:
+        [homepoint-release.apk](https://github.com/AeroPoint/AP-HomePoint/releases/latest/download/homepoint-release.apk)
+        (the newest version; all versions are under **Releases**).
       - Google's ADB tool: [SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) →
-        the download for Mac or Windows. You get a folder called `platform-tools`.
+        the download for Mac or Windows, then unzip it. You get a folder called `platform-tools`.
    3. **Put them together.** Move `homepoint-release.apk` and the `platform-tools` folder into `AP-HomePoint-main`.
    4. **Open a command window.**
       - Mac: open **Terminal** (Applications → Utilities).
